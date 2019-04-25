@@ -21,10 +21,6 @@ import collections
 import numpy as np
 import sys
 
-
-BATCH_SIZE = 500
-
-
 def topk_mean(m, k, inplace=False):  # TODO Assuming that axis is 1
     xp = get_array_module(m)
     n = m.shape[0]
@@ -58,6 +54,7 @@ def main():
     parser.add_argument('--seed', type=int, default=0, help='the random seed')
     parser.add_argument('--precision', choices=['fp16', 'fp32', 'fp64'], default='fp32', help='the floating-point precision (defaults to fp32)')
     parser.add_argument('--cuda', action='store_true', help='use cuda (requires cupy)')
+    parser.add_argument('--batch_size', default=256, type=int, help='batch size for inputs (default: 256)')
     args = parser.parse_args()
 
     # Choose the right dtype for the desired precision
@@ -67,6 +64,8 @@ def main():
         dtype = 'float32'
     elif args.precision == 'fp64':
         dtype = 'float64'
+        
+    BATCH_SIZE = args.batch_size
 
     # Read input embeddings
     srcfile = open(args.src_embeddings, encoding=args.encoding, errors='surrogateescape')
