@@ -45,6 +45,9 @@ def main():
     parser.add_argument('src_embeddings', help='the source language embeddings')
     parser.add_argument('trg_embeddings', help='the target language embeddings')
     parser.add_argument('-d', '--dictionary', default=sys.stdin.fileno(), help='the test dictionary file (defaults to stdin)')
+    parser.add_argument('-o', '--output', default=None, type=str, help='output path to dump dictionary')
+    parser.add_argument('-e', '--errors', default=None, type=str, help='output path to dump incorrect translations and possible correct translations')
+
     parser.add_argument('--retrieval', default='nn', choices=['nn', 'invnn', 'invsoftmax', 'csls'], help='the retrieval method (nn: standard nearest neighbor; invnn: inverted nearest neighbor; invsoftmax: inverted softmax; csls: cross-domain similarity local scaling)')
     parser.add_argument('--inv_temperature', default=1, type=float, help='the inverse temperature (only compatible with inverted softmax)')
     parser.add_argument('--inv_sample', default=None, type=int, help='use a random subset of the source vocabulary for the inverse computations (only compatible with inverted softmax)')
@@ -161,6 +164,23 @@ def main():
             nn = similarities.argmax(axis=1).tolist()
             for k in range(j-i):
                 translation[src[i+k]] = nn[k]
+
+
+    if args.output != None:
+        with open(args.output,'w') as out:
+            for k,v in translation.items():
+                src_w = src_words[k]
+                trg_w = trg_words[v]
+                print(src_w,'\t',trg_w, file=out)
+
+    if args.errors != None:
+        with open(args.errors,'w') as out:
+            for i in src:
+                if translation[i] not in src2trg[i]:
+                    origin = src_words[i]
+                    pred = trg_words[translation[i]]
+                    gold = [trg_words[j] for j in src2trg[i]]
+                    print(origin, pred, gold, sep='\t', file=out)
 
     # Compute accuracy
     accuracy = np.mean([1 if translation[i] in src2trg[i] else 0 for i in src])
