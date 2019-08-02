@@ -21,6 +21,8 @@ import collections
 import numpy as np
 import sys
 
+from time import sleep
+
 def topk_mean(m, k, inplace=False):  # TODO Assuming that axis is 1
     xp = get_array_module(m)
     n = m.shape[0]
@@ -38,7 +40,6 @@ def topk_mean(m, k, inplace=False):  # TODO Assuming that axis is 1
         m[ind0, ind1] = minimum
     return ans / k
 
-
 def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Evaluate embeddings of two languages in a shared space in word translation induction')
@@ -49,6 +50,8 @@ def main():
     parser.add_argument('-e', '--errors', default=None, type=str, help='output path to dump incorrect translations and possible correct translations')
 
     parser.add_argument('--retrieval', default='nn', choices=['nn', 'invnn', 'invsoftmax', 'csls'], help='the retrieval method (nn: standard nearest neighbor; invnn: inverted nearest neighbor; invsoftmax: inverted softmax; csls: cross-domain similarity local scaling)')
+    parser.add_argument('--patk', default=None, type=int, help='r-patk accuracy measurement (currently only compatible with nn or csls retrieval)')
+    
     parser.add_argument('--inv_temperature', default=1, type=float, help='the inverse temperature (only compatible with inverted softmax)')
     parser.add_argument('--inv_sample', default=None, type=int, help='use a random subset of the source vocabulary for the inverse computations (only compatible with inverted softmax)')
     parser.add_argument('-k', '--neighborhood', default=10, type=int, help='the neighborhood size (only compatible with csls)')
@@ -69,6 +72,9 @@ def main():
         dtype = 'float64'
         
     BATCH_SIZE = args.batch_size
+
+    if args.patk != None:
+        assert args.patk >= 2, 'patk must be int >= 2 if used'
 
     # Read input embeddings
     srcfile = open(args.src_embeddings, encoding=args.encoding, errors='surrogateescape')
@@ -117,13 +123,22 @@ def main():
 
     # Find translations
     translation = collections.defaultdict(int)
+    patk_translation = collections.defaultdict(set) if args.patk else None
+
     if args.retrieval == 'nn':  # Standard nearest neighbor
         for i in range(0, len(src), BATCH_SIZE):
             j = min(i + BATCH_SIZE, len(src))
             similarities = x[src[i:j]].dot(z.T)
+
             nn = similarities.argmax(axis=1).tolist()
+            if args.patk:
+                topk = np.argpartition(similarities, -args.patk, axis=1)[:,:-(args.patk+1):-1]
+                #print(topk)
+                #sleep(20)
             for k in range(j-i):
                 translation[src[i+k]] = nn[k]
+                if args.patk: patk_translation[src[i+k]] = patk_translation[src[i+k]].union(set(topk[k]))
+                
     elif args.retrieval == 'invnn':  # Inverted nearest neighbor
         best_rank = np.full(len(src), x.shape[0], dtype=int)
         best_sim = np.full(len(src), -100, dtype=dtype)
@@ -160,11 +175,15 @@ def main():
             knn_sim_bwd[i:j] = topk_mean(z[i:j].dot(x.T), k=args.neighborhood, inplace=True)
         for i in range(0, len(src), BATCH_SIZE):
             j = min(i + BATCH_SIZE, len(src))
+
             similarities = 2*x[src[i:j]].dot(z.T) - knn_sim_bwd  # Equivalent to the real CSLS scores for NN
             nn = similarities.argmax(axis=1).tolist()
+            if args.patk:
+                topk = similarities.argpartition(-args.patk, axis=1)[:,:-(args.patk+1):-1]
+            
             for k in range(j-i):
                 translation[src[i+k]] = nn[k]
-
+                if args.patk: patk_translation[src[i+k]] = patk_translation[src[i+k]].union(set(topk[k]))
 
     if args.output != None:
         with open(args.output,'w') as out:
@@ -184,8 +203,14 @@ def main():
 
     # Compute accuracy
     accuracy = np.mean([1 if translation[i] in src2trg[i] else 0 for i in src])
-    print('Coverage:{0:7.2%}  Accuracy:{1:7.2%}'.format(coverage, accuracy))
 
+    if args.patk:
+        patk_acc = lambda y_hat,y: len(y_hat.intersection(y)) / min(len(y_hat), len(y))
+        patk_accuracy = np.mean([ patk_acc(patk_translation[i], src2trg[i]) for i in src ])
+    
+    print('Coverage:{0:7.2%}  r-P@1:{1:7.2%}'.format(coverage, accuracy))
+    if args.patk:
+        print('r-P@{1}: {0:7.2%}'.format(patk_accuracy, args.patk))
 
 if __name__ == '__main__':
     main()
