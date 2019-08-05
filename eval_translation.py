@@ -179,8 +179,9 @@ def main():
             similarities = 2*x[src[i:j]].dot(z.T) - knn_sim_bwd  # Equivalent to the real CSLS scores for NN
             nn = similarities.argmax(axis=1).tolist()
             if args.patk:
-                topk = similarities.argpartition(-args.patk, axis=1)[:,:-(args.patk+1):-1]
-            
+                topk = np.argpartition(similarities, -args.patk, axis=1)[:,:-(args.patk+1):-1]
+                #print(topk)
+                #sleep(20)
             for k in range(j-i):
                 translation[src[i+k]] = nn[k]
                 if args.patk: patk_translation[src[i+k]] = patk_translation[src[i+k]].union(set(topk[k]))
