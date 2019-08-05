@@ -132,7 +132,7 @@ def main():
 
             nn = similarities.argmax(axis=1).tolist()
             if args.patk:
-                topk = np.argpartition(similarities, -args.patk, axis=1)[:,:-(args.patk+1):-1]
+                topk = xp.argpartition(similarities, -args.patk, axis=1)[:,:-(args.patk+1):-1]
                 #print(topk)
                 #sleep(20)
             for k in range(j-i):
@@ -179,7 +179,8 @@ def main():
             similarities = 2*x[src[i:j]].dot(z.T) - knn_sim_bwd  # Equivalent to the real CSLS scores for NN
             nn = similarities.argmax(axis=1).tolist()
             if args.patk:
-                topk = np.argpartition(similarities, -args.patk, axis=1)[:,:-(args.patk+1):-1]
+                try:
+                    topk = xp.argpartition(similarities, -args.patk, axis=1)[:,:-(args.patk+1):-1]
                 #print(topk)
                 #sleep(20)
             for k in range(j-i):
