@@ -69,6 +69,11 @@ def main():
     recommended_type.add_argument('--supervised', metavar='DICTIONARY', help='recommended if you have a large training dictionary')
     recommended_type.add_argument('--semi_supervised', metavar='DICTIONARY', help='recommended if you have a small seed dictionary')
     recommended_type.add_argument('--identical', action='store_true', help='recommended if you have no seed dictionary but can rely on identical words')
+    #AD
+    recommended_type.add_argument('--numerals', action='store_true', help='recommended if you have no seed dictionary but can rely on similar numerals')
+    recommended_type.add_argument('--punctuation', action='store_true', help='recommended if you have no seed dictionary but can rely on similar punctuation')
+    recommended_type.add_argument('--numerals_and_punctuation', action='store_true', help='recommended if you have no seed dictionary but can rely on similar numerals and punctuation')
+    
     recommended_type.add_argument('--unsupervised', action='store_true', help='recommended if you have no seed dictionary and do not want to rely on identical words')
     recommended_type.add_argument('--acl2018', action='store_true', help='reproduce our ACL 2018 system')
     recommended_type.add_argument('--aaai2018', metavar='DICTIONARY', help='reproduce our AAAI 2018 system')
@@ -80,7 +85,9 @@ def main():
     init_type = init_group.add_mutually_exclusive_group()
     init_type.add_argument('-d', '--init_dictionary', default=sys.stdin.fileno(), metavar='DICTIONARY', help='the training dictionary file (defaults to stdin)')
     init_type.add_argument('--init_identical', action='store_true', help='use identical words as the seed dictionary')
-    init_type.add_argument('--init_numerals', action='store_true', help='use latin numerals (i.e. words matching [0-9]+) as the seed dictionary')
+    init_type.add_argument('--init_numerals', action='store_true', help='use latin numerals (i.e. words matching [0-9]+) as the seed dictionary. branch:andidyer--also matches positive floats with comma or period decimal separator (e.g. "3.14", "1,23")')
+    init_type.add_argument('--init_punctuation', action='store_true', help='use punctuation and other symbols (i.e. words matching [!,.#\-%/+=]+) as the seed dictionary')
+    init_type.add_argument('--init_numerals_and_punctuation', action='store_true', help='use numerals and punctuation as the seed dictionary')
     init_type.add_argument('--init_unsupervised', action='store_true', help='use unsupervised initialization')
     init_group.add_argument('--unsupervised_vocab', type=int, default=0, help='restrict the vocabulary to the top k entries for unsupervised initialization')
 
@@ -116,6 +123,15 @@ def main():
         parser.set_defaults(init_dictionary=args.semi_supervised, normalize=['unit', 'center', 'unit'], whiten=True, src_reweight=0.5, trg_reweight=0.5, src_dewhiten='src', trg_dewhiten='trg', self_learning=True, vocabulary_cutoff=20000, csls_neighborhood=10)
     if args.identical:
         parser.set_defaults(init_identical=True, normalize=['unit', 'center', 'unit'], whiten=True, src_reweight=0.5, trg_reweight=0.5, src_dewhiten='src', trg_dewhiten='trg', self_learning=True, vocabulary_cutoff=20000, csls_neighborhood=10)
+
+    #andidyer additional seed settings - punct, num and punct
+    if args.numerals:
+        parser.set_defaults(init_numerals=True, normalize=['unit', 'center', 'unit'], whiten=True, src_reweight=0.5, trg_reweight=0.5, src_dewhiten='src', trg_dewhiten='trg', self_learning=True, vocabulary_cutoff=20000, csls_neighborhood=10)
+    if args.punctuation:
+        parser.set_defaults(init_punctuation=True, normalize=['unit', 'center', 'unit'], whiten=True, src_reweight=0.5, trg_reweight=0.5, src_dewhiten='src', trg_dewhiten='trg', self_learning=True, vocabulary_cutoff=20000, csls_neighborhood=10)
+    if args.numerals_and_punctuation:
+        parser.set_defaults(init_numerals_and_punctuation=True, normalize=['unit', 'center', 'unit'], whiten=True, src_reweight=0.5, trg_reweight=0.5, src_dewhiten='src', trg_dewhiten='trg', self_learning=True, vocabulary_cutoff=20000, csls_neighborhood=10)
+        
     if args.unsupervised or args.acl2018:
         parser.set_defaults(init_unsupervised=True, unsupervised_vocab=4000, normalize=['unit', 'center', 'unit'], whiten=True, src_reweight=0.5, trg_reweight=0.5, src_dewhiten='src', trg_dewhiten='trg', self_learning=True, vocabulary_cutoff=20000, csls_neighborhood=10)
     if args.aaai2018:
@@ -197,11 +213,27 @@ def main():
             trg_indices = xp.concatenate((sim.argmax(axis=1), xp.arange(sim_size)))
         del xsim, zsim, sim
     elif args.init_numerals:
-        numeral_regex = re.compile('^[0-9]+$')
+        numeral_regex = re.compile('^[0-9]+[.,]?[0-9]+$')
         src_numerals = {word for word in src_words if numeral_regex.match(word) is not None}
         trg_numerals = {word for word in trg_words if numeral_regex.match(word) is not None}
         numerals = src_numerals.intersection(trg_numerals)
         for word in numerals:
+            src_indices.append(src_word2ind[word])
+            trg_indices.append(trg_word2ind[word])
+    elif args.init_punctuation:
+        punctuation_regex = re.compile('^[!,.#\-%/+=]+$')
+        src_punct = {word for word in src_words if punctuation_regex.match(word) is not None}
+        trg_punct = {word for word in trg_words if punctuation_regex.match(word) is not None}
+        punct = src_punct.intersection(trg_punct)
+        for word in punct:
+            src_indices.append(src_word2ind[word])
+            trg_indices.append(trg_word2ind[word])
+    elif args.init_numerals_and_punctuation:
+        num_punct_regex = re.compile('^[0-9]+[.,]?[0-9]+$|^[!,.#\-%/+=]+$')
+        src_symbols = {word for word in src_words if num_punct_regex.match(word) is not None}
+        trg_symbols = {word for word in trg_words if num_punct_regex.match(word) is not None}
+        symbols = src_symbols.intersection(trg_symbols)
+        for word in punct:
             src_indices.append(src_word2ind[word])
             trg_indices.append(trg_word2ind[word])
     elif args.init_identical:
