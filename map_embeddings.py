@@ -233,7 +233,7 @@ def main():
         src_symbols = {word for word in src_words if num_punct_regex.match(word) is not None}
         trg_symbols = {word for word in trg_words if num_punct_regex.match(word) is not None}
         symbols = src_symbols.intersection(trg_symbols)
-        for word in punct:
+        for word in symbols:
             src_indices.append(src_word2ind[word])
             trg_indices.append(trg_word2ind[word])
     elif args.init_identical:
