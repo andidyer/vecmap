@@ -163,6 +163,9 @@ def main():
     src_words, x = embeddings.read(srcfile, dtype=dtype)
     trg_words, z = embeddings.read(trgfile, dtype=dtype)
 
+    # Length of src and trg vocab (used for statistics)
+    src_len, trg_len = len(src_words), len(trg_words)
+
     # NumPy/CuPy management
     if args.cuda:
         if not supports_cupy():
@@ -401,6 +404,10 @@ def main():
                 src_indices = xp.concatenate((src_indices_forward, src_indices_backward))
                 trg_indices = xp.concatenate((trg_indices_forward, trg_indices_backward))
 
+            #Length of src and trg indices for statistics
+            src_ind_len = len(src_indices)
+            trg_ind_len = len(trg_indices)
+                
             # Objective function evaluation
             if args.direction == 'forward':
                 objective = xp.mean(best_sim_forward).tolist()
@@ -427,6 +434,8 @@ def main():
                 print('ITERATION {0} ({1:.2f}s)'.format(it, duration), file=sys.stderr)
                 print('\t- Objective:        {0:9.4f}%'.format(100 * objective), file=sys.stderr)
                 print('\t- Drop probability: {0:9.4f}%'.format(100 - 100*keep_prob), file=sys.stderr)
+                print('\t- Source language words in training dictionary: {0}/{1} ({2:9.4}%)'.format(src_ind_len, src_len, 100*(src_ind_len/src_len)), file=sys.stderr)
+                print('\t- Target language words in training dictionary: {0}/{1} ({2:9.4}%)'.format(trg_ind_len, trg_len, 100*(trg_ind_len/trg_len)), file=sys.stderr)
                 if args.validation is not None:
                     print('\t- Val. similarity:  {0:9.4f}%'.format(100 * similarity), file=sys.stderr)
                     print('\t- Val. accuracy:    {0:9.4f}%'.format(100 * accuracy), file=sys.stderr)
